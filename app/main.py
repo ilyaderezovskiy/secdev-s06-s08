@@ -14,28 +14,51 @@ app = FastAPI(title="secdev-seed-s06-s08")
 templates = Jinja2Templates(directory="app/templates")
 
 def strip_html_tags_keep_text(text: str) -> str:
-    """Удаляет HTML теги, но сохраняет текстовое содержимое"""
+    """Удаляет HTML теги, но сохраняет текстовое содержимое и значения атрибутов.
+    - Не трогает конструкции, которые не представляют собой тэги (например '<3').
+    - Из тэгов сохраняет только значения атрибутов (например alert(1)), не имена атрибутов.
+    - Очищает javascript:/vbscript: схемы из значений.
+    """
     if not text:
         return ""
-    
-    # Удаляем HTML теги, но сохраняем текст между ними
-    clean_text = re.sub(r'<[^>]*>', '', text)
-    
-    # Декодируем HTML entities чтобы получить читаемый текст
-    decoded_text = html.unescape(clean_text)
-    
-    # Удаляем только опасные JavaScript, а не весь текст
-    dangerous_patterns = [
-        r'javascript:', 
-        r'vbscript:',
-        r'on\w+\s*=',
-    ]
-    
-    safe_text = decoded_text
-    for pattern in dangerous_patterns:
-        safe_text = re.sub(pattern, '[removed]', safe_text, flags=re.IGNORECASE)
-    
-    return safe_text.strip()
+
+    # Регекс только для "настоящих" HTML-тегов: начинается с '<', затем optional '/', затем буква
+    tag_re = re.compile(r'<\s*/?\s*[a-zA-Z][^>]*>', flags=re.DOTALL)
+
+    # Регекс для извлечения значений атрибутов (в двойных/одинарных кавычках либо без):
+    attr_re = re.compile(
+        r'\b[a-zA-Z_:][-a-zA-Z0-9_:.]*'      # имя атрибута
+        r'\s*=\s*'
+        r'(?:'
+        r'"([^"]*)"'
+        r'|\'([^\']*)\''
+        r'|([^>\s]+)'
+        r')'
+    )
+
+    def replace_tag(match: re.Match) -> str:
+        tag = match.group(0)
+        values = []
+        for m in attr_re.finditer(tag):
+            # одна из групп содержит значение
+            val = m.group(1) or m.group(2) or m.group(3) or ""
+            if not val:
+                continue
+            val = html.unescape(val)
+            val = re.sub(r'^\s*(javascript:|vbscript:)', '', val, flags=re.IGNORECASE)
+            if val:
+                values.append(val)
+        return " " + " ".join(values) + " "
+    without_tags = tag_re.sub(replace_tag, text)
+
+    # Декодируем HTML сущности для остального текста
+    decoded = html.unescape(without_tags)
+    decoded = re.sub(r'javascript:', '[removed]', decoded, flags=re.IGNORECASE)
+    decoded = re.sub(r'vbscript:', '[removed]', decoded, flags=re.IGNORECASE)
+    decoded = re.sub(r'\bon[a-zA-Z0-9_-]*\s*=', '', decoded, flags=re.IGNORECASE)
+
+    return decoded.strip()
+
 
 def safe_query(sql: str):
     """Безопасное выполнение SQL запроса с обработкой ошибок"""
