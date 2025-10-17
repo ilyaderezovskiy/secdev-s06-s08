@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from starlette.status import HTTP_401_UNAUTHORIZED
+from markupsafe import Markup
 import re
 import html
 import sqlite3
@@ -85,12 +86,14 @@ def safe_query_one(sql: str):
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request, msg: str | None = None):
     clean_msg = strip_html_tags_keep_text(msg) if msg else "Hello!"
-    return templates.TemplateResponse("index.html", {"request": request, "message": clean_msg})
+    return templates.TemplateResponse(
+        "index.html", {"request": request, "message": Markup(clean_msg)})
 
 @app.get("/echo", response_class=HTMLResponse)
 def echo(request: Request, msg: str | None = None):
     clean_msg = strip_html_tags_keep_text(msg) if msg else ""
-    return templates.TemplateResponse("index.html", {"request": request, "message": clean_msg})
+    return templates.TemplateResponse(
+        "index.html", {"request": request, "message": Markup(clean_msg)})
 
 @app.get("/search")
 def search(q: str | None = Query(default=None, min_length=1, max_length=32)):
