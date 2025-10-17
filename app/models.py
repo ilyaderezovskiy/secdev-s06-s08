@@ -1,5 +1,6 @@
 
 from pydantic import BaseModel, constr, field_validator
+from typing import Optional
 import re
 
 # Строгие типы для валидации
@@ -42,4 +43,4 @@ class LoginRequest(BaseModel):
 class Item(BaseModel):
     id: int
     name: str = constr(min_length=1, max_length=100)  # Добавляем ограничения и для Item
-    description: str | None = constr(max_length=500)  # Ограничение длины описания
+    description: Optional[str] = constr(max_length=500)  # Ограничение длины описания
