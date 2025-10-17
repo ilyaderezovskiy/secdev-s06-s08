@@ -13,40 +13,40 @@ from .db import query, query_one
 app = FastAPI(title="secdev-seed-s06-s08")
 templates = Jinja2Templates(directory="app/templates")
 
-def strip_all_html(text: str) -> str:
-    """Полностью удаляет все HTML теги, оставляя только чистый текст"""
+def strip_html_tags_keep_text(text: str) -> str:
+    """Удаляет HTML теги, но сохраняет текстовое содержимое"""
     if not text:
         return ""
     
-    # Удаляем все HTML теги
+    # Удаляем HTML теги, но сохраняем текст между ними
     clean_text = re.sub(r'<[^>]*>', '', text)
     
-    # Декодируем HTML entities
+    # Декодируем HTML entities чтобы получить читаемый текст
     decoded_text = html.unescape(clean_text)
     
-    # Удаляем опасные JavaScript паттерны
+    # Удаляем только опасные JavaScript, а не весь текст
     dangerous_patterns = [
         r'javascript:', 
         r'vbscript:',
         r'on\w+\s*=',
     ]
     
+    safe_text = decoded_text
     for pattern in dangerous_patterns:
-        decoded_text = re.sub(pattern, '[removed]', decoded_text, flags=re.IGNORECASE)
+        safe_text = re.sub(pattern, '[removed]', safe_text, flags=re.IGNORECASE)
     
-    return decoded_text.strip()
+    return safe_text.strip()
 
 def safe_query(sql: str):
     """Безопасное выполнение SQL запроса с обработкой ошибок"""
     try:
-        # Блокируем опасные операции
         if any(keyword in sql.upper() for keyword in ['DROP', 'DELETE', 'UPDATE', 'INSERT', 'UNION']):
             return []
         return query(sql)
     except sqlite3.ProgrammingError:
-        return []  # Блокируем множественные statements
+        return []
     except Exception:
-        return []  # Блокируем другие ошибки
+        return []
 
 def safe_query_one(sql: str):
     """Безопасное выполнение SQL запроса для одной записи"""
@@ -61,21 +61,17 @@ def safe_query_one(sql: str):
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request, msg: str | None = None):
-    # Безопасно: очищаем HTML и используем автоэкранирование Jinja2
-    clean_msg = strip_all_html(msg) if msg else "Hello!"
+    clean_msg = strip_html_tags_keep_text(msg) if msg else "Hello!"
     return templates.TemplateResponse("index.html", {"request": request, "message": clean_msg})
 
 @app.get("/echo", response_class=HTMLResponse)
 def echo(request: Request, msg: str | None = None):
-    # Полностью удаляем HTML ДО передачи в шаблон
-    clean_msg = strip_all_html(msg) if msg else ""
+    clean_msg = strip_html_tags_keep_text(msg) if msg else ""
     return templates.TemplateResponse("index.html", {"request": request, "message": clean_msg})
 
 @app.get("/search")
 def search(q: str | None = Query(default=None, min_length=1, max_length=32)):
-    # Защищенная версия с безопасной обработкой SQL
     if q:
-        # Экранируем специальные символы для LIKE
         safe_q = q.replace("%", "\\%").replace("_", "\\_")
         sql = f"SELECT id, name, description FROM items WHERE name LIKE '%{safe_q}%'"
         items = safe_query(sql)
@@ -87,7 +83,6 @@ def search(q: str | None = Query(default=None, min_length=1, max_length=32)):
 
 @app.post("/login")
 def login(payload: LoginRequest):
-    # Защищенная версия с безопасной обработкой SQL
     sql = f"SELECT id, username FROM users WHERE username = '{payload.username}' AND password = '{payload.password}'"
     row = safe_query_one(sql)
     
