@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from starlette.status import HTTP_401_UNAUTHORIZED
 from markupsafe import Markup
+from typing import Optional
 import re
 import html
 import sqlite3
@@ -84,19 +85,19 @@ def safe_query_one(sql: str):
         return None
 
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request, msg: str | None = None):
+def index(request: Request, msg: Optional[str] = None):
     clean_msg = strip_html_tags_keep_text(msg) if msg else "Hello!"
     return templates.TemplateResponse(
         "index.html", {"request": request, "message": Markup(clean_msg)})
 
 @app.get("/echo", response_class=HTMLResponse)
-def echo(request: Request, msg: str | None = None):
+def echo(request: Request, msg: Optional[str] = None):
     clean_msg = strip_html_tags_keep_text(msg) if msg else ""
     return templates.TemplateResponse(
         "index.html", {"request": request, "message": Markup(clean_msg)})
 
 @app.get("/search")
-def search(q: str | None = Query(default=None, min_length=1, max_length=32)):
+def search(q: Optional[str] = Query(default=None, min_length=1, max_length=32)):
     if q:
         safe_q = q.replace("%", "\\%").replace("_", "\\_")
         sql = f"SELECT id, name, description FROM items WHERE name LIKE '%{safe_q}%'"
