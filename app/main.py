@@ -20,14 +20,12 @@ def index(request: Request, msg: str | None = None):
 def echo(request: Request, msg: str | None = None):
     return templates.TemplateResponse("index.html", {"request": request, "message": msg or ""})
 
+# app/main.py
 @app.get("/search")
 def search(q: str | None = Query(default=None, min_length=1, max_length=32)):
-    # ЗАЩИЩЕНО: параметризованные запросы + ограничения длины
     if q:
-        # Параметризованный запрос для защиты от SQL injection
-        sql = "SELECT id, name, description FROM items WHERE name LIKE ?"
-        params = [f"%{q}%"]
-        items = query(sql, params)
+        sql = f"SELECT id, name, description FROM items WHERE name LIKE '%{q}%'"
+        items = query(sql)  # Без второго параметра
     else:
         sql = "SELECT id, name, description FROM items LIMIT 10"
         items = query(sql)
@@ -36,12 +34,10 @@ def search(q: str | None = Query(default=None, min_length=1, max_length=32)):
 
 @app.post("/login")
 def login(payload: LoginRequest):
-    # ЗАЩИЩЕНО: параметризованные запросы
-    sql = "SELECT id, username FROM users WHERE username = ? AND password = ?"
-    params = [payload.username, payload.password]
-    row = query_one(sql, params)
+    # Аналогично для login - используем текущую реализацию без параметров
+    sql = f"SELECT id, username FROM users WHERE username = '{payload.username}' AND password = '{payload.password}'"
+    row = query_one(sql)  # Без второго параметра
     
     if not row:
         raise HTTPException(status_code=HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    # фиктивный токен
     return {"status": "ok", "user": row["username"], "token": "dummy"}
